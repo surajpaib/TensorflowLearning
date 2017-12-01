@@ -12,7 +12,7 @@ class YOLO_Network:
 
     def define_network(self):
         logger.info('Building Network for Yolo')
-        self.x = tf.placeholder('float32', [None, 448, 448, 3])
+        self.x = tf.placeholder(tf.float32, [None, 448, 448, 3])
         self.conv1 = self.Convolution2D_Layer(1, self.x, 64, 7, 2)
         self.max_pool1 = self.MaxPool_Layer(2, self.conv1, 2, 2)
         self.conv2 = self.Convolution2D_Layer(3, self.max_pool1, 192, 3, 1)
@@ -33,7 +33,43 @@ class YOLO_Network:
         self.conv12 = self.Convolution2D_Layer(14, self.pool6, 1024, 3, 1)
         self.fc_1 = self.FC_Layer(15, self.conv12, 512, flat=True, trainable=self.trainable)
         self.fc_2 = self.FC_Layer(16, self.fc_1, 4096, flat=False, trainable=self.trainable)
-        self.dropout =
+        self.dropout = self.Dropout_Layer(17, self.fc_2, 0.5)
+        self.fc_3 = self.FC_Layer(18, self.dropout, 1470, flat=False, trainable=self.trainable)
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+
+
+    def training_metrics(self):
+        self.x_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
+        self.y_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
+        self.w_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
+        self.h_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
+        self.C_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
+        self.p_ = tf.placeholder(tf.float32, [None, 7, 7, 20])
+        self.obj = tf.placeholder(tf.float32, [None, 7, 7, 2])
+        self.objI = tf.placeholder(tf.float32, [None, 7, 7])
+        self.noobj = tf.placeholder(tf.float32, [None,7, 7, 2])
+
+        output = self.fc_3
+        nb_image = tf.shape(self.x_)[0]
+        class_probs = tf.reshape(output[0:nb_image, 0:980], (nb_image, 7, 7, 20))
+        scales = tf.reshape(output[0:nb_image, 980:1078], (nb_image, 7, 7, 2))
+        boxes = tf.reshape(output[0:nb_image, 1078:], (nb_image, 7, 7, 2, 4))
+        boxes0 = boxes[:, :, :, :, 0]
+        boxes1 = boxes[:, :, :, :, 1]
+        boxes2 = boxes[:, :, :, :, 2]
+        boxes3 = boxes[:, :, :, :, 3]
+
+        self.subX = tf.subtract(boxes0, self.x_)
+        self.subY = tf.subtract(boxes1, self.y_)
+        self.subW = tf.subtract(boxes2, self.w_)
+        self.subH = tf.subtract(boxes3, self.h_)
+        self.subC = tf.subtract(scales, self.C_)
+        self.subP = tf.subtract(class_probs, self.p_)
+        self.loss = tf.multiply(self.lambda_c, tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subX, self.subX))))
+
+
+
 
 
     def Convolution2D_Layer(self, layer_idx, input, filter, size, stride, trainable=False):
@@ -71,7 +107,10 @@ class YOLO_Network:
         logger.info('Layer {0}: Type: Fully Connected Output:{1} Input Shape: {2}'.format(layer_idx, hidden, str(input.get_shape())))
         return tf.maximum(tf.multiply(self.alpha, ip), ip)
 
-    def 
+    def Dropout_Layer(self, layer_idx, input, dropput_prob):
+        logger.info('Layer {0}: Type: Dropout Rate:{1} Input Shape: {2}'.format(layer_idx, dropput_prob, str(input.get_shape())))
+        return tf.nn.dropout(input, keep_prob=dropput_prob)
+
 if __name__ == "__main__":
     net = YOLO_Network(alpha=0.1, trainable= True)
     net.define_network()
