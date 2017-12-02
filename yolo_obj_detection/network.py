@@ -115,7 +115,8 @@ class YOLO_Network:
         Image = []
         for img_file in img_files:
             prelabel = voc_train.get_training_data(img_file)
-            x =
+            x = np.zeros([7, 7, 2])
+            y =
 
 
 
