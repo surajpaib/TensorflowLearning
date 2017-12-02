@@ -6,8 +6,11 @@ logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
 
 class YOLO_Network:
-    def __init__(self, alpha, trainable):
+    def __init__(self, alpha, lambda_coord, lambda_noobj, trainable, total_labels):
         self.alpha = alpha
+        self.labels = total_labels
+        self.lambda_coord = lambda_coord
+        self.lambda_noobj = lambda_noobj
         self.trainable = trainable
 
     def define_network(self):
@@ -34,12 +37,16 @@ class YOLO_Network:
         self.fc_1 = self.FC_Layer(15, self.conv12, 512, flat=True, trainable=self.trainable)
         self.fc_2 = self.FC_Layer(16, self.fc_1, 4096, flat=False, trainable=self.trainable)
         self.dropout = self.Dropout_Layer(17, self.fc_2, 0.5)
-        self.fc_3 = self.FC_Layer(18, self.dropout, 1470, flat=False, trainable=self.trainable)
+        self.fc_3 = self.FC_Layer(18, self.dropout, 7 * 7 * self.labels, flat=False, trainable=self.trainable)
         self.sess = tf.Session()
         self.sess.run(tf.global_variables_initializer())
 
 
     def training_metrics(self):
+        # Training side output information
+        # YOLO model splits the input into 7 x 7 grid and predicts two bounding boxes per each grid hence the [7, 7, 2] tensor for each value. obj indicates presence of an object in one unit of the grid for each
+        # of the bounding boxes, similarly noobj as well. objI indicates if any object is present in one unit and is a [7, 7] tensor
+
         self.x_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
         self.y_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
         self.w_ = tf.placeholder(tf.float32, [None, 7, 7, 2])
@@ -52,23 +59,63 @@ class YOLO_Network:
 
         output = self.fc_3
         nb_image = tf.shape(self.x_)[0]
-        class_probs = tf.reshape(output[0:nb_image, 0:980], (nb_image, 7, 7, 20))
-        scales = tf.reshape(output[0:nb_image, 980:1078], (nb_image, 7, 7, 2))
-        boxes = tf.reshape(output[0:nb_image, 1078:], (nb_image, 7, 7, 2, 4))
+
+        # Among the final 1470 size output vector first 7x7x self.labels elements represent class probabilities for number of labels
+
+        class_probs = tf.reshape(output[0:nb_image, 0: (7 * 7 * self.labels)], (nb_image, 7, 7, self.labels))
+        scales = tf.reshape(output[0:nb_image, (7 * 7 * self.labels): (7 * 7 * self.labels) + 7 * 7 * 2], (nb_image, 7, 7, 2))
+        boxes = tf.reshape(output[0:nb_image, (7 * 7 * self.labels) + 7 * 7 * 2:], (nb_image, 7, 7, 2, 4))
         boxes0 = boxes[:, :, :, :, 0]
         boxes1 = boxes[:, :, :, :, 1]
         boxes2 = boxes[:, :, :, :, 2]
         boxes3 = boxes[:, :, :, :, 3]
 
+        ## Loss Functions for each of the above metrics
         self.subX = tf.subtract(boxes0, self.x_)
         self.subY = tf.subtract(boxes1, self.y_)
         self.subW = tf.subtract(boxes2, self.w_)
         self.subH = tf.subtract(boxes3, self.h_)
         self.subC = tf.subtract(scales, self.C_)
         self.subP = tf.subtract(class_probs, self.p_)
-        self.loss = tf.multiply(self.lambda_c, tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subX, self.subX))))
+
+        # Each loss is a squared difference between the actual and the predictions. It is multiplied with self.obj to consider the metric only if the object is present and then multiplied
+        # with self.lambda_coord which is a weighted value.
+        self.lossX = tf.multiply(self.lambda_coord, tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subX, self.subX)), axis=[1, 2, 3]))
+        self.lossY = tf.multiply(self.lambda_coord, tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subY, self.subY)), axis=[1, 2, 3]))
+        self.lossW = tf.multiply(self.lambda_coord, tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subW, self.subW)), axis=[1, 2, 3]))
+        self.lossH = tf.multiply(self.lambda_coord, tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subH, self.subH)), axis=[1, 2, 3]))
+        self.lossC_Obj = tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subC, self.subC)), axis=[1, 2, 3])
+        self.lossC_Noobbj = tf.multiply(self.lambda_noobj, tf.reduce_sum(tf.multiply(self.noobj, tf.multiply(self.subC, self.subC)), axis=[1, 2, 3]))
+        self.lossP = tf.reduce_sum(tf.multiply(self.objI, tf.reduce_sum(tf.multiply(self.subP, self.subP), axis=3)), axis=[1, 2, 3])
+
+        # Combining the loss functions to generate a scalar loss metric
+        self.loss = tf.add_n((self.lossX, self.lossY, self.lossW, self.lossH, self.lossP, self.lossC_Obj, self.lossC_Noobbj))
+        self.loss = tf.reduce_mean(self.loss)
 
 
+        global_step = tf.Variable(0, trainable=False)
+        starter_lr = 0.004
+        self.epoch = tf.placeholder(tf.int32)
+
+        self.train_step = tf.train.MomentumOptimizer(learning_rate=starter_lr, momentum=0.9).minimize(self.loss, global_step=global_step)
+        self.sess = tf.Session()
+        self.sess.run(tf.global_variables_initializer())
+
+
+    def build_label(self, img_files):
+        X_global = []
+        Y_global = []
+        W_global = []
+        H_global = []
+        C_global = []
+        P_global = []
+        obj_global = []
+        objI_global = []
+        noobj_global = []
+        Image = []
+        for img_file in img_files:
+            prelabel = voc_train.get_training_data(img_file)
+            x =
 
 
 
@@ -112,5 +159,5 @@ class YOLO_Network:
         return tf.nn.dropout(input, keep_prob=dropput_prob)
 
 if __name__ == "__main__":
-    net = YOLO_Network(alpha=0.1, trainable= True)
+    net = YOLO_Network(alpha=0.1, lambda_coord= 5.0, lambda_noobj=0.5, trainable= True, total_labels=20)
     net.define_network()
