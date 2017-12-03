@@ -1,9 +1,12 @@
 import tensorflow as tf
 import logging
 import numpy as np
+import itertools
+import cv2
 
 logger = logging.getLogger()
 logging.basicConfig(level=logging.INFO)
+classes = []
 
 class YOLO_Network:
     def __init__(self, alpha, lambda_coord, lambda_noobj, trainable, total_labels):
@@ -12,6 +15,7 @@ class YOLO_Network:
         self.lambda_coord = lambda_coord
         self.lambda_noobj = lambda_noobj
         self.trainable = trainable
+        self.index_in_epoch = 0
 
     def define_network(self):
         logger.info('Building Network for Yolo')
@@ -102,7 +106,7 @@ class YOLO_Network:
         self.sess.run(tf.global_variables_initializer())
 
 
-    def build_label(self, img_files):
+    def build_label(self, img_files, epoch):
         X_global = []
         Y_global = []
         W_global = []
@@ -116,8 +120,122 @@ class YOLO_Network:
         for img_file in img_files:
             prelabel = voc_train.get_training_data(img_file)
             x = np.zeros([7, 7, 2])
-            y =
+            x = np.zeros([7, 7, 2])
+            y = np.zeros([7, 7, 2])
+            w = np.zeros([7, 7, 2])
+            h = np.zeros([7, 7, 2])
+            C = np.zeros([7, 7, 2])
+            p = np.zeros([7, 7, 20])
+            obj = np.zeros([7, 7, 2])
+            objI = np.zeros([7, 7])
+            noobj = np.ones([7, 7, 2])
+            img = voc_utils.load_img(img_file)
 
+            for i, j in itertools.product([0, 7], [0, 7]):
+                if prelabel[i][j] is not None:
+                    index = 0
+                    while (len(prelabel[i][j]) > index and index < 2):
+                        x[i][j][index] = (float(prelabel[i][j][index][0])/len(img)) * 7 - i
+                        y[i][j][index] = (float(prelabel[i][j][index][1])/len(img)) * 7 - j
+                        w[i][j][index] = np.sqrt(prelabel[i][j][index][2]) / len(img) * 7
+                        h[i][j][index] = np.sqrt(prelabel[i][j][index][2]) / len(img[0])
+                        C[i][j][index] = 1.0
+                        p[i][j][self.classes.index(prelabel[i][j][index][4])] = 1.0 / float(len(prelabel[i][j]))
+                        obj[i][j][index] = 1.0
+                        objI[i][j] = 1.0
+                        noobj[i][j][index] = 0.0
+                        index = index + 1
+            X_global.append(x)
+            Y_global.append(y)
+            W_global.append(w)
+            H_global.append(h)
+            C_global.append(C)
+            P_global.append(p)
+            obj_global.append(obj)
+            objI_global.append(objI)
+            noobj_global.append(noobj)
+
+            img_resized = cv2.resize(img, (448, 448))
+            img_RGB = cv2.cvtColor(img_resized, cv2.COLOR_BGR2RGB)
+            img_resized_np = np.asarray(img_RGB)
+            inputs = np.zeros((1, 448, 448, 3), dtype='float32')
+            inputs[0] = (img_resized_np / 255.0) * 2.0 - 1.0
+            Image.append(inputs[0])
+            X_global = np.array(X_global)
+            Y_global = np.array(Y_global)
+            W_global = np.array(W_global)
+            H_global = np.array(H_global)
+            C_global = np.array(C_global)
+            P_global = np.array(P_global)
+            obj_global = np.array(obj_global)
+            objI_global = np.array(objI_global)
+            noobj_global = np.array(noobj_global)
+            Image = np.array(Image)
+
+        return {self.x: Image, self.x_: X_global, self.y_: Y_global, self.w_: W_global, self.h_: H_global,
+                    self.C_: C_global,
+                    self.p_: P_global, self.obj: obj_global, self.objI: objI_global, self.noobj: noobj_global, self.epoch: epoch}
+
+    def next_batch(self, batch_size, num_examples):
+        start = self.index_in_epoch
+        self.index_in_epoch += batch_size
+        if self.index_in_epoch > num_examples:
+            perm = np.arange(num_examples)
+            np.random.shuffle(perm)
+            self.label = self.label[perm]
+            start = 0
+            self.index_in_epoch = batch_size
+            assert  batch_size <= num_examples
+        end = self.index_in_epoch
+        return self.label[start: end]
+
+
+
+
+
+
+    def training_step(self, i, update_test, update_train):
+        for nbatch in range(0, len(self.label)/64):
+            train_dict = self.build_label(self.next_batch(12, num_examples=len(self.label)), i)
+            self.sess.run(self.train_step, train_dict)
+
+
+        train_l = []
+        test_l = []
+
+        if update_train:
+            l = self.sess.run(self.loss, feed_dict=self.build_label(self.label, i))
+            logger.info('Training Loss: {0}'.format(l))
+            train_l.append(l)
+
+
+        if update_test:
+            l = self.sess.run(self.loss, feed_dict=self.build_label(self.label_test_, i))
+            test_l.append(l)
+            test_l.append(l)
+
+
+
+        return (train_l, test_l)
+
+    def train(self):
+        train_l = []
+        test_l = []
+        self.label = voc_utils.imgs_from_category_as_list("bird", "train")
+        self.label_test = voc_utils.imgs_from_category_as_list("bird", "val")
+        training_iter = 137
+        epoch_size = 5
+        for i in range(training_iter):
+            test = False
+            if i % epoch_size == 0 and i != 0:
+                test = True
+            l, tl = self.training_step(i, test, test)
+            train_l += l
+            test_l += tl
+        print("train loss")
+        print(train_l)
+        print("test loss")
+        print(test_l)
 
 
     def Convolution2D_Layer(self, layer_idx, input, filter, size, stride, trainable=False):
