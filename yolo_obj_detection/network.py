@@ -93,11 +93,11 @@ class YOLO_Network:
         self.lossC_Obj = tf.reduce_sum(tf.multiply(self.obj, tf.multiply(self.subC, self.subC)), axis=[1, 2, 3])
         self.lossC_Noobbj = tf.multiply(self.lambda_noobj, tf.reduce_sum(tf.multiply(self.noobj, tf.multiply(self.subC, self.subC)), axis=[1, 2, 3]))
         self.lossP = tf.reduce_sum(tf.multiply(self.objI, tf.reduce_sum(tf.multiply(self.subP, self.subP), axis=3)), axis=[1, 2])
-
         # Combining the loss functions to generate a scalar loss metric
         self.loss = tf.add_n((self.lossX, self.lossY, self.lossW, self.lossH, self.lossP, self.lossC_Obj, self.lossC_Noobbj))
         self.loss = tf.reduce_mean(self.loss)
 
+        logger.info("Total Combined loss for all outputs in the network: {0}".format(type(self.loss)))
 
         global_step = tf.Variable(0, trainable=False)
         starter_lr = 0.004
@@ -282,3 +282,4 @@ class YOLO_Network:
 if __name__ == "__main__":
     net = YOLO_Network(alpha=0.1, lambda_coord= 5.0, lambda_noobj=0.5, trainable= True, total_labels=20)
     net.define_network()
+    net.training_metrics()
