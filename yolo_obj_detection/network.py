@@ -121,7 +121,7 @@ class YOLO_Network:
         Image = []
         for img_file in img_files:
             prelabel = voc_train.get_training_data(img_file)
-            x = np.zeros([7, 7, 2])
+            print("Label Annotation: " + str(prelabel))
             x = np.zeros([7, 7, 2])
             y = np.zeros([7, 7, 2])
             w = np.zeros([7, 7, 2])
@@ -225,6 +225,7 @@ class YOLO_Network:
         test_l = []
         self.label = voc_utils.imgs_from_category_as_list("bird", "train")
         self.label_test = voc_utils.imgs_from_category_as_list("bird", "val")
+        logger.info("Training Array: {0} Testing Array: {1}".format(str(self.label), str(self.label_test)))
         training_iter = 137
         epoch_size = 5
         for i in range(training_iter):

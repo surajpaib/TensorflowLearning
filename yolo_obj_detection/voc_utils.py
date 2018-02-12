@@ -8,7 +8,7 @@ import skimage
 from skimage import io
 
 # Change root_dir depending on where you have stored the dataset
-root_dir = '/home/dani/Files/Data/VOC2012/'
+root_dir = '/content/VOCdevkit/VOC2012'
 img_dir = os.path.join(root_dir, 'JPEGImages/')
 ann_dir = os.path.join(root_dir, 'Annotations/')
 set_dir = os.path.join(root_dir, 'ImageSets', 'Main')
