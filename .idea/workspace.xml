@@ -1,12 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="eba7fd75-7030-4d16-b724-347536e01a90" name="Default" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/Tensorflow.iml" afterPath="$PROJECT_DIR$/.idea/Tensorflow.iml" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" afterPath="$PROJECT_DIR$/.idea/misc.xml" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change beforePath="$PROJECT_DIR$/yolo_obj_detection/network.py" afterPath="$PROJECT_DIR$/yolo_obj_detection/network.py" />
-    </list>
+    <list default="true" id="eba7fd75-7030-4d16-b724-347536e01a90" name="Default" comment="" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="TRACKING_ENABLED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
