@@ -1,0 +1,8 @@
+bs4
+numpy
+scikit-image
+more_itertools
+pandas
+matplotlib
+tensorflow
+opencv-python
