@@ -229,12 +229,16 @@ class YOLO_Network:
         training_iter = 137
         epoch_size = 5
         for i in range(training_iter):
-            test = False
-            if i % epoch_size == 0 and i != 0:
-                test = True
-            l, tl = self.training_step(i, test, test)
-            train_l += l
-            test_l += tl
+            try:
+                test = False
+                if i % epoch_size == 0 and i != 0:
+                    test = True
+                l, tl = self.training_step(i, test, test)
+                train_l += l
+                test_l += tl
+            except:
+                pass
+
         print("train loss")
         print(train_l)
         print("test loss")
@@ -284,3 +288,4 @@ if __name__ == "__main__":
     net = YOLO_Network(alpha=0.1, lambda_coord= 5.0, lambda_noobj=0.5, trainable= True, total_labels=20)
     net.define_network()
     net.training_metrics()
+    net.train()
